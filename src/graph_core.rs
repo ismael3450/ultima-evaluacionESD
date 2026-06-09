@@ -1,21 +1,52 @@
-// HOLA STEVEN:
-// Te corresponde diseñar la inserción de los nodos y las aristas para poblar la red.
-// Usa las funciones que Ismael preparó en `graph_core.rs`.
+use petgraph::graph::{NodeIndex, UnGraph};
 
-use crate::graph_core::{RedGrafo, crear_grafo_vacio, añadir_ciudad, conectar_ciudades, IdNodo};
+pub type Distancia = u32;
+pub type RedGrafo = UnGraph<String, Distancia>;
+pub type IdNodo = NodeIndex;
 
-/// Modela y puebla la red real simplificada (ej. Red de transporte entre ciudades).
-/// Retorna el grafo completamente cargado y, si es necesario, el nodo inicial.
-pub fn inicializar_red() -> (RedGrafo, IdNodo) {
-    let mut grafo = crear_grafo_vacio();
+/// Inicializa un grafo vacío de tipo UnGraph (No dirigido y ponderado).
+/// Almacena internamente los nodos de forma contigua en memoria, garantizando
+/// una excelente localidad de caché.
+pub fn crear_grafo_vacio() -> RedGrafo {
+    RedGrafo::default()
+}
 
-    // 1. Añade las ciudades usando añadir_ciudad(&mut grafo, "Nombre")
-    // 2. Conecta las ciudades con distancias usando conectar_ciudades(&mut grafo, desde, hasta, km)
+/// Añade una ciudad al grafo y retorna su identificador único (NodeIndex).
+/// Implementa una salvaguarda que busca si la ciudad ya existe para evitar la
+/// duplicación de nodos en memoria durante la carga de datos.
+pub fn añadir_ciudad(grafo: &mut RedGrafo, nombre: &str) -> IdNodo {
+    if let Some(id_existente) = buscar_ciudad(grafo, nombre) {
+        return id_existente;
+    }
+    grafo.add_node(nombre.to_string())
+}
 
-    // Ejemplo temporal (reemplázalo por la red real que expongamos):
-    let nodo_inicio = añadir_ciudad(&mut grafo, "San Salvador");
-    let nodo_destino = añadir_ciudad(&mut grafo, "Santa Ana");
-    conectar_ciudades(&mut grafo, nodo_inicio, nodo_destino, 65);
+/// Conecta dos ciudades mediante una arista ponderada (distancia).
+/// Valida que no exista una conexión previa para asegurar la integridad de la red.
+pub fn conectar_ciudades(grafo: &mut RedGrafo, desde: IdNodo, hasta: IdNodo, distancia: Distancia) {
+    if !grafo.contains_edge(desde, hasta) {
+        grafo.add_edge(desde, hasta, distancia);
+    }
+}
 
-    (grafo, nodo_inicio)
+// =========================================================================
+// MÉTODOS DE CONSULTA DE ALTA EFICIENCIA (Para algoritmos y UI)
+// =========================================================================
+
+/// Obtiene de forma segura el nombre de una ciudad a partir de su IdNodo.
+/// Esencial para que el BFS, DFS y la UI puedan imprimir texto en lugar de índices.
+pub fn obtener_nombre(grafo: &RedGrafo, id: IdNodo) -> Option<&str> {
+    grafo.node_weight(id).map(|s| s.as_str())
+}
+
+/// Busca una ciudad por su nombre exacto y devuelve su IdNodo.
+/// Utiliza los iteradores nativos de petgraph optimizados para recorrer la memoria contigua.
+pub fn buscar_ciudad(grafo: &RedGrafo, nombre: &str) -> Option<IdNodo> {
+    grafo.node_indices().find(|&idx| {
+        if let Some(n) = grafo.node_weight(idx) {
+            n == nombre
+        } else {
+            false
+        }
+    })
 }
