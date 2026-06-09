@@ -1,52 +1,97 @@
-use petgraph::graph::{NodeIndex, UnGraph};
+use petgraph::graph::{EdgeIndex, NodeIndex, UnGraph};
 
 pub type Distancia = u32;
 pub type RedGrafo = UnGraph<String, Distancia>;
 pub type IdNodo = NodeIndex;
+pub type IdArista = EdgeIndex;
 
-/// Inicializa un grafo vacío de tipo UnGraph (No dirigido y ponderado).
-/// Almacena internamente los nodos de forma contigua en memoria, garantizando
-/// una excelente localidad de caché.
 pub fn crear_grafo_vacio() -> RedGrafo {
     RedGrafo::default()
 }
 
-/// Añade una ciudad al grafo y retorna su identificador único (NodeIndex).
-/// Implementa una salvaguarda que busca si la ciudad ya existe para evitar la
-/// duplicación de nodos en memoria durante la carga de datos.
+/// Busca duplicados antes de insertar. Complejidad O(V).
 pub fn añadir_ciudad(grafo: &mut RedGrafo, nombre: &str) -> IdNodo {
-    if let Some(id_existente) = buscar_ciudad(grafo, nombre) {
-        return id_existente;
+    if let Some(id) = buscar_ciudad(grafo, nombre) {
+        return id;
     }
     grafo.add_node(nombre.to_string())
 }
 
-/// Conecta dos ciudades mediante una arista ponderada (distancia).
-/// Valida que no exista una conexión previa para asegurar la integridad de la red.
-pub fn conectar_ciudades(grafo: &mut RedGrafo, desde: IdNodo, hasta: IdNodo, distancia: Distancia) {
-    if !grafo.contains_edge(desde, hasta) {
-        grafo.add_edge(desde, hasta, distancia);
+/// Retorna `false` si los nodos no existen o la arista ya existe.
+pub fn conectar_ciudades(grafo: &mut RedGrafo, desde: IdNodo, hasta: IdNodo, distancia: Distancia) -> bool {
+    if !grafo.node_indices().any(|n| n == desde) || !grafo.node_indices().any(|n| n == hasta) {
+        return false;
     }
+    if grafo.contains_edge(desde, hasta) {
+        return false;
+    }
+    grafo.add_edge(desde, hasta, distancia);
+    true
 }
 
-// =========================================================================
-// MÉTODOS DE CONSULTA DE ALTA EFICIENCIA (Para algoritmos y UI)
-// =========================================================================
-
-/// Obtiene de forma segura el nombre de una ciudad a partir de su IdNodo.
-/// Esencial para que el BFS, DFS y la UI puedan imprimir texto en lugar de índices.
 pub fn obtener_nombre(grafo: &RedGrafo, id: IdNodo) -> Option<&str> {
     grafo.node_weight(id).map(|s| s.as_str())
 }
 
-/// Busca una ciudad por su nombre exacto y devuelve su IdNodo.
-/// Utiliza los iteradores nativos de petgraph optimizados para recorrer la memoria contigua.
 pub fn buscar_ciudad(grafo: &RedGrafo, nombre: &str) -> Option<IdNodo> {
-    grafo.node_indices().find(|&idx| {
-        if let Some(n) = grafo.node_weight(idx) {
-            n == nombre
-        } else {
-            false
-        }
-    })
+    grafo.node_indices().find(|&idx| grafo.node_weight(idx).map_or(false, |n| n == nombre))
+}
+
+pub fn obtener_distancia(grafo: &RedGrafo, desde: IdNodo, hasta: IdNodo) -> Option<Distancia> {
+    grafo.find_edge(desde, hasta).and_then(|a| grafo.edge_weight(a)).copied()
+}
+
+pub fn total_ciudades(grafo: &RedGrafo) -> usize { grafo.node_count() }
+pub fn total_conexiones(grafo: &RedGrafo) -> usize { grafo.edge_count() }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn grafo_de_prueba() -> (RedGrafo, IdNodo, IdNodo, IdNodo) {
+        let mut g = crear_grafo_vacio();
+        let ss = añadir_ciudad(&mut g, "San Salvador");
+        let sa = añadir_ciudad(&mut g, "Santa Ana");
+        let sm = añadir_ciudad(&mut g, "San Miguel");
+        conectar_ciudades(&mut g, ss, sa, 65);
+        conectar_ciudades(&mut g, ss, sm, 138);
+        (g, ss, sa, sm)
+    }
+
+    #[test]
+    fn test_no_duplica_ciudades() {
+        let mut g = crear_grafo_vacio();
+        let id1 = añadir_ciudad(&mut g, "San Salvador");
+        let id2 = añadir_ciudad(&mut g, "San Salvador");
+        assert_eq!(id1, id2);
+        assert_eq!(total_ciudades(&g), 1);
+    }
+
+    #[test]
+    fn test_no_duplica_aristas() {
+        let (mut g, ss, sa, _) = grafo_de_prueba();
+        assert!(!conectar_ciudades(&mut g, ss, sa, 99));
+        assert_eq!(total_conexiones(&g), 2);
+    }
+
+    #[test]
+    fn test_obtener_distancia() {
+        let (g, ss, sa, _) = grafo_de_prueba();
+        assert_eq!(obtener_distancia(&g, ss, sa), Some(65));
+        assert_eq!(obtener_distancia(&g, sa, ss), Some(65));
+    }
+
+    #[test]
+    fn test_buscar_ciudad() {
+        let (g, ss, _, _) = grafo_de_prueba();
+        assert_eq!(buscar_ciudad(&g, "San Salvador"), Some(ss));
+        assert!(buscar_ciudad(&g, "Atlantis").is_none());
+    }
+
+    #[test]
+    fn test_conectar_nodo_invalido() {
+        let mut g = crear_grafo_vacio();
+        let ss = añadir_ciudad(&mut g, "San Salvador");
+        assert!(!conectar_ciudades(&mut g, ss, NodeIndex::new(999), 10));
+    }
 }

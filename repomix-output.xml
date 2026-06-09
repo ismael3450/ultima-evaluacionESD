@@ -1,0 +1,367 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+src/
+  algorithms/
+    bfs.rs
+    dfs.rs
+    mod.rs
+  data_loader.rs
+  graph_core.rs
+  main.rs
+  ui.rs
+.gitignore
+Cargo.toml
+README.md
+teoria_grafos.md
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="src/algorithms/mod.rs">
+pub mod bfs;
+pub mod dfs;
+</file>
+
+<file path=".gitignore">
+/target
+</file>
+
+<file path="Cargo.toml">
+[package]
+name = "red_ciudades_grafos"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+petgraph = "0.8.3"
+</file>
+
+<file path="src/algorithms/bfs.rs">
+use crate::graph_core::{self, IdNodo, RedGrafo};
+use std::collections::{HashMap, HashSet, VecDeque};
+
+/// Ejecuta BFS para encontrar el camino con el menor número de conexiones entre dos ciudades.
+/// Retorna un Vector ordenado con la secuencia de nodos si el destino es alcanzable.
+pub fn ruta_mas_corta_bfs(grafo: &RedGrafo, inicio: IdNodo, objetivo: IdNodo) -> Option<Vec<IdNodo>> {
+    if inicio == objetivo {
+        return Some(vec![inicio]);
+    }
+
+    let mut cola = VecDeque::new();
+    let mut visitados = HashSet::new();
+    let mut predecesores: HashMap<IdNodo, IdNodo> = HashMap::new();
+
+    cola.push_back(inicio);
+    visitados.insert(inicio);
+
+    while let Some(actual) = cola.pop_front() {
+        if actual == objetivo {
+            return Some(reconstruir_ruta(inicio, objetivo, &predecesores));
+        }
+
+        // El recorrido de vecinos aprovecha la localidad de caché al acceder a arreglos compactos
+        for vecino in grafo.neighbors(actual) {
+            if visitados.insert(vecino) {
+                predecesores.insert(vecino, actual);
+                cola.push_back(vecino);
+            }
+        }
+    }
+
+    None
+}
+
+/// Reconstruye la ruta secuencial desde el objetivo hacia el inicio.
+fn reconstruir_ruta(inicio: IdNodo, objetivo: IdNodo, predecesores: &HashMap<IdNodo, IdNodo>) -> Vec<IdNodo> {
+    let mut ruta = Vec::new();
+    let mut nodo_actual = objetivo;
+
+    while let Some(&padre) = predecesores.get(&nodo_actual) {
+        ruta.push(nodo_actual);
+        nodo_actual = padre;
+    }
+
+    ruta.push(inicio);
+    ruta.reverse();
+    ruta
+}
+
+/// Recorrido auxiliar iterativo que simplemente imprime el orden de visitas del BFS estándar.
+pub fn mostrar_orden_visitas_bfs(grafo: &RedGrafo, inicio: IdNodo) {
+    let mut cola = VecDeque::new();
+    let mut visitados = HashSet::new();
+
+    cola.push_back(inicio);
+    visitados.insert(inicio);
+
+    println!("\n--- Órden de Exploración BFS ---");
+    while let Some(actual) = cola.pop_front() {
+        if let Some(nombre) = graph_core::obtener_nombre(grafo, actual) {
+            println!("[Nodo Visitado]: {}", nombre);
+        }
+
+        for vecino in grafo.neighbors(actual) {
+            if visitados.insert(vecino) {
+                cola.push_back(vecino);
+            }
+        }
+    }
+    println!("--------------------------------\n");
+}
+
+// =========================================================================
+// SECCIÓN DE PRUEBAS UNITARIAS
+// =========================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::graph_core::{añadir_ciudad, conectar_ciudades, crear_grafo_vacio};
+
+    #[test]
+    fn test_ruta_mas_corta_bfs_valida() {
+        let mut grafo = crear_grafo_vacio();
+        let ss = añadir_ciudad(&mut grafo, "San Salvador");
+        let sa = añadir_ciudad(&mut grafo, "Santa Ana");
+        let sm = añadir_ciudad(&mut grafo, "San Miguel");
+        let ah = añadir_ciudad(&mut grafo, "Ahuachapán");
+
+        conectar_ciudades(&mut grafo, ss, sa, 65);
+        conectar_ciudades(&mut grafo, sa, ah, 35);
+        conectar_ciudades(&mut grafo, ss, sm, 138);
+
+        let ruta_optima = ruta_mas_corta_bfs(&grafo, ss, ah);
+
+        assert!(ruta_optima.is_some(), "El algoritmo no encontró una ruta que sí existe.");
+
+        let ruta = ruta_optima.unwrap();
+        assert_eq!(ruta, vec![ss, sa, ah], "El BFS calculó una ruta incorrecta.");
+    }
+
+    #[test]
+    fn test_ruta_inexistente() {
+        let mut grafo = crear_grafo_vacio();
+        let ss = añadir_ciudad(&mut grafo, "San Salvador");
+        let isla = añadir_ciudad(&mut grafo, "Isla Aislada");
+
+        let ruta = ruta_mas_corta_bfs(&grafo, ss, isla);
+        assert!(ruta.is_none(), "El algoritmo inventó una ruta a un nodo desconectado.");
+    }
+}
+</file>
+
+<file path="src/algorithms/dfs.rs">
+// HOLA KEVIN:
+// Te corresponde implementar el algoritmo secundario: Recorrido en Profundidad (DFS).
+// Recuerda que la guía pide usarlo para detectar si existen ciclos en la red.
+// Utiliza los tipos definidos en `graph_core`.
+
+use crate::graph_core::{RedGrafo, IdNodo};
+use std::collections::HashSet;
+
+/// Ejecuta un recorrido en profundidad (DFS) para detectar ciclos o explorar la red.
+pub fn ejecutar_dfs(grafo: &RedGrafo, inicio: IdNodo) {
+    println!("\n--- Iniciando Recorrido DFS (Trabajo de Kevin) ---");
+
+    // Tu código del DFS va aquí...
+    // Pista: Puedes usar recursividad o una pila (Stack) manual, rastreando los nodos visitados.
+
+    println!("------------------------------------------------\n");
+}
+
+// 🧪 SECCIÓN DE PRUEBAS UNITARIAS
+// La rúbrica evalúa la lógica del código. Aquí debes estructurar los tests
+// para validar que las rutas calculadas por el programa sean correctas.
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::graph_core::{crear_grafo_vacio, añadir_ciudad, conectar_ciudades};
+
+    #[test]
+    fn test_deteccion_de_ciclos() {
+        // Levanta un grafo pequeño de prueba y asegura con un assert! que tu DFS funcione
+    }
+}
+</file>
+
+<file path="src/data_loader.rs">
+// HOLA STEVEN:
+// Te corresponde diseñar la inserción de los nodos y las aristas para poblar la red.
+// Usa las funciones que Ismael preparó en `graph_core.rs`.
+
+use crate::graph_core::{RedGrafo, crear_grafo_vacio, añadir_ciudad, conectar_ciudades, IdNodo};
+
+/// Modela y puebla la red real simplificada (ej. Red de transporte entre ciudades).
+/// Retorna el grafo completamente cargado y, si es necesario, el nodo inicial.
+pub fn inicializar_red() -> (RedGrafo, IdNodo) {
+    let mut grafo = crear_grafo_vacio();
+
+    // 1. Añade las ciudades usando añadir_ciudad(&mut grafo, "Nombre")
+    // 2. Conecta las ciudades con distancias usando conectar_ciudades(&mut grafo, desde, hasta, km)
+
+    // Ejemplo temporal (reemplázalo por la red real que expongamos):
+    let nodo_inicio = añadir_ciudad(&mut grafo, "San Salvador");
+    let nodo_destino = añadir_ciudad(&mut grafo, "Santa Ana");
+    conectar_ciudades(&mut grafo, nodo_inicio, nodo_destino, 65);
+
+    (grafo, nodo_inicio)
+}
+</file>
+
+<file path="src/main.rs">
+mod graph_core;
+mod algorithms;
+mod data_loader;
+mod ui;
+
+fn main() {
+    // 1. Interfaz inicial (Trabajo de Steven)
+    // ui::mostrar_bienvenida();
+    println!("--- Sistema de Monitoreo de Red (Versión de Desarrollo) ---");
+
+    // 2. Carga del grafo en memoria (Trabajo de Steven)
+    // let (grafo, nodo_inicio) = data_loader::inicializar_red();
+
+    // ==========================================
+    // CÓDIGO TEMPORAL PARA QUE PRUEBES DE BFS:
+    // (Bórralo cuando Steven termine data_loader)
+    let mut grafo = graph_core::crear_grafo_vacio();
+    let ss = graph_core::añadir_ciudad(&mut grafo, "San Salvador");
+    let sa = graph_core::añadir_ciudad(&mut grafo, "Santa Ana");
+    graph_core::conectar_ciudades(&mut grafo, ss, sa, 65);
+
+    algorithms::bfs::mostrar_orden_visitas_bfs(&grafo, ss);
+    // ==========================================
+
+    // 3. Ejecución de algoritmos para comparativa
+    // algorithms::dfs::ejecutar_dfs(&grafo, nodo_inicio); // Trabajo de Kevin
+
+    // 4. Resultados finales
+    // ui::mostrar_reporte_final();
+}
+</file>
+
+<file path="src/ui.rs">
+// HOLA STEVEN:
+// Te toca programar la interfaz de consola que mostrará los resultados de los recorridos
+// de forma ordenada, limpia y estética para la demostración en vivo (5 min de exposición).
+
+pub fn mostrar_bienvenida() {
+    println!("====================================================");
+    println!("   SISTEMA DE ENRUTAMIENTO OPTIMIZADO EN MEMORIA     ");
+    println!("====================================================");
+}
+
+pub fn mostrar_reporte_final() {
+    // Diseña aquí un formato limpio para imprimir las comparaciones de rendimiento,
+    // orden de visitas o datos estadísticos que calculen los algoritmos.
+}
+</file>
+
+<file path="README.md">
+# Sistema de Monitoreo de Red (Grafos en Rust)
+
+## Instrucciones de Ejecución
+</file>
+
+<file path="teoria_grafos.md">
+# Investigación Teórica: Fundamentos de Grafos
+</file>
+
+<file path="src/graph_core.rs">
+use petgraph::graph::{NodeIndex, UnGraph};
+
+pub type Distancia = u32;
+pub type RedGrafo = UnGraph<String, Distancia>;
+pub type IdNodo = NodeIndex;
+
+/// Inicializa un grafo vacío de tipo UnGraph (No dirigido y ponderado).
+/// Almacena internamente los nodos de forma contigua en memoria, garantizando
+/// una excelente localidad de caché.
+pub fn crear_grafo_vacio() -> RedGrafo {
+    RedGrafo::default()
+}
+
+/// Añade una ciudad al grafo y retorna su identificador único (NodeIndex).
+/// Implementa una salvaguarda que busca si la ciudad ya existe para evitar la
+/// duplicación de nodos en memoria durante la carga de datos.
+pub fn añadir_ciudad(grafo: &mut RedGrafo, nombre: &str) -> IdNodo {
+    if let Some(id_existente) = buscar_ciudad(grafo, nombre) {
+        return id_existente;
+    }
+    grafo.add_node(nombre.to_string())
+}
+
+/// Conecta dos ciudades mediante una arista ponderada (distancia).
+/// Valida que no exista una conexión previa para asegurar la integridad de la red.
+pub fn conectar_ciudades(grafo: &mut RedGrafo, desde: IdNodo, hasta: IdNodo, distancia: Distancia) {
+    if !grafo.contains_edge(desde, hasta) {
+        grafo.add_edge(desde, hasta, distancia);
+    }
+}
+
+// =========================================================================
+// MÉTODOS DE CONSULTA DE ALTA EFICIENCIA (Para algoritmos y UI)
+// =========================================================================
+
+/// Obtiene de forma segura el nombre de una ciudad a partir de su IdNodo.
+/// Esencial para que el BFS, DFS y la UI puedan imprimir texto en lugar de índices.
+pub fn obtener_nombre(grafo: &RedGrafo, id: IdNodo) -> Option<&str> {
+    grafo.node_weight(id).map(|s| s.as_str())
+}
+
+/// Busca una ciudad por su nombre exacto y devuelve su IdNodo.
+/// Utiliza los iteradores nativos de petgraph optimizados para recorrer la memoria contigua.
+pub fn buscar_ciudad(grafo: &RedGrafo, nombre: &str) -> Option<IdNodo> {
+    grafo.node_indices().find(|&idx| {
+        if let Some(n) = grafo.node_weight(idx) {
+            n == nombre
+        } else {
+            false
+        }
+    })
+}
+</file>
+
+</files>
