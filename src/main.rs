@@ -56,4 +56,30 @@ fn main() {
 
     println!();
     // algorithms::dfs::ejecutar_dfs(&grafo, ss); // Kevin
+
+    // ... Todo el código anterior de BFS y Dijkstra se mantiene igual ...
+
+    match algorithms::bfs::ruta_mas_corta_dijkstra(&grafo, origen, destino) {
+        Some((km, ruta)) => {
+            let nombres: Vec<&str> = ruta.iter()
+                .filter_map(|&id| obtener_nombre(&grafo, id))
+                .collect();
+            println!("  Dijkstra (menos km): {} ({}km)", nombres.join(" → "), km);
+        }
+        None => println!("  Dijkstra: no existe ruta."),
+    }
+
+    println!();
+    
+    // --- DFS: Análisis Topológico y Detección de Ciclos (Trabajo de Kevin) ---
+    // Descomentamos la línea y guardamos el resultado para enriquecer la interfaz
+    let tiene_ciclos = algorithms::dfs::ejecutar_dfs(&grafo, ss);
+    
+    if tiene_ciclos {
+        println!("NOTA TÉCNICA (Exposición): El DFS detectó bucles cerrados.");
+        println!("   Esto demuestra que la red tiene rutas alternativas redundantes.");
+    } else {
+        println!("NOTA TÉCNICA (Exposición): La red es un árbol acíclico puro.");
+    }
+
 }
