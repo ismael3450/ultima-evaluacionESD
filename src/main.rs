@@ -3,83 +3,33 @@ mod algorithms;
 mod data_loader;
 mod ui;
 
-use graph_core::{añadir_ciudad, conectar_ciudades, crear_grafo_vacio, obtener_nombre};
+use graph_core::buscar_ciudad;
 
 fn main() {
+    // ── Bienvenida ────────────────────────────────────────────────────────────
     ui::mostrar_bienvenida();
 
-    // --- Construcción del grafo (temporal hasta que Steven termine data_loader) ---
-    let mut grafo = crear_grafo_vacio();
+    // ── Cargar la red (Steven - data_loader.rs) ───────────────────────────────
+    let (grafo, origen) = data_loader::inicializar_red();
+    ui::mostrar_resumen_grafo(&grafo);
 
-    let ss = añadir_ciudad(&mut grafo, "San Salvador");
-    let sa = añadir_ciudad(&mut grafo, "Santa Ana");
-    let sm = añadir_ciudad(&mut grafo, "San Miguel");
-    let ah = añadir_ciudad(&mut grafo, "Ahuachapán");
-    let so = añadir_ciudad(&mut grafo, "Sonsonate");
+    // ── Destino de prueba para la demo ────────────────────────────────────────
+    let destino = buscar_ciudad(&grafo, "Ahuachapán")
+        .expect("Ciudad destino no encontrada en la red");
 
-    conectar_ciudades(&mut grafo, ss, sa, 65);
-    conectar_ciudades(&mut grafo, sa, ah, 35);
-    conectar_ciudades(&mut grafo, ss, sm, 138);
-    conectar_ciudades(&mut grafo, ss, so, 74);
-    conectar_ciudades(&mut grafo, so, sa, 40);
+    // ── BFS: orden de exploración desde San Salvador ──────────────────────────
+    algorithms::bfs::mostrar_orden_visitas_bfs(&grafo, origen);
 
-    // --- BFS: orden de exploración ---
-    algorithms::bfs::mostrar_orden_visitas_bfs(&grafo, ss);
+    // ── Comparativa BFS vs Dijkstra: San Salvador → Ahuachapán ───────────────
+    let ruta_bfs = algorithms::bfs::ruta_mas_corta_bfs(&grafo, origen, destino);
+    ui::mostrar_resultado_bfs(&grafo, origen, destino, ruta_bfs.as_ref());
 
-    // --- Comparativa BFS vs Dijkstra: SS → AH ---
-    let origen = ss;
-    let destino = ah;
-    let nombre_origen = obtener_nombre(&grafo, origen).unwrap_or("?");
-    let nombre_destino = obtener_nombre(&grafo, destino).unwrap_or("?");
+    let ruta_dijkstra = algorithms::bfs::ruta_mas_corta_dijkstra(&grafo, origen, destino);
+    ui::mostrar_resultado_dijkstra(&grafo, origen, destino, ruta_dijkstra.as_ref());
 
-    println!("Ruta: {} → {}\n", nombre_origen, nombre_destino);
+    // ── DFS: exploración y detección de ciclos ──────────────
+    algorithms::dfs::ejecutar_dfs(&grafo, origen); // descomentar cuando Kevin termine
 
-    match algorithms::bfs::ruta_mas_corta_bfs(&grafo, origen, destino) {
-        Some(ruta) => {
-            let nombres: Vec<&str> = ruta.iter()
-                .filter_map(|&id| obtener_nombre(&grafo, id))
-                .collect();
-            println!("  BFS  (menos saltos): {} ({} conexiones)", nombres.join(" → "), nombres.len() - 1);
-        }
-        None => println!("  BFS: no existe ruta."),
-    }
-
-    match algorithms::bfs::ruta_mas_corta_dijkstra(&grafo, origen, destino) {
-        Some((km, ruta)) => {
-            let nombres: Vec<&str> = ruta.iter()
-                .filter_map(|&id| obtener_nombre(&grafo, id))
-                .collect();
-            println!("  Dijkstra (menos km): {} ({}km)", nombres.join(" → "), km);
-        }
-        None => println!("  Dijkstra: no existe ruta."),
-    }
-
-    println!();
-    // algorithms::dfs::ejecutar_dfs(&grafo, ss); // Kevin
-
-    // ... Todo el código anterior de BFS y Dijkstra se mantiene igual ...
-
-    match algorithms::bfs::ruta_mas_corta_dijkstra(&grafo, origen, destino) {
-        Some((km, ruta)) => {
-            let nombres: Vec<&str> = ruta.iter()
-                .filter_map(|&id| obtener_nombre(&grafo, id))
-                .collect();
-            println!("  Dijkstra (menos km): {} ({}km)", nombres.join(" → "), km);
-        }
-        None => println!("  Dijkstra: no existe ruta."),
-    }
-
-    println!();
-    
-    // --- DFS: Análisis Topológico y Detección de Ciclos (Trabajo de Kevin) ---
-    // Descomentamos la línea y guardamos el resultado para enriquecer la interfaz
-    let tiene_ciclos = algorithms::dfs::ejecutar_dfs(&grafo, ss);
-    
-    if tiene_ciclos {
-        println!("NOTA TÉCNICA (Exposición): El DFS detectó bucles cerrados.");
-        println!("   Esto demuestra que la red tiene rutas alternativas redundantes.");
-    } else {
-        println!("NOTA TÉCNICA (Exposición): La red es un árbol acíclico puro.");
-    }
-
+    // ── Cierre ────────────────────────────────────────────────────────────────
+    ui::mostrar_reporte_final();
 }
